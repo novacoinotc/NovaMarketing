@@ -1,28 +1,22 @@
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/config';
+import { getProjectsByOrgId, getProjectStats } from '@/lib/db/queries/projects';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import {
-  Plus,
-  FileText,
-  Megaphone,
-  Share2,
-  BarChart3,
-} from 'lucide-react';
+import { FileText, Megaphone, Share2, BarChart3, Globe, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
+import { CreateProjectButton } from '@/components/dashboard/create-project-button';
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
+  const orgId = session!.user.orgId;
 
-  // TODO: Fetch real projects from DB
-  const projects: {
-    id: string;
-    name: string;
-    domain: string | null;
-    status: string;
-    industry: string | null;
-  }[] = [];
+  const [allProjects, stats] = await Promise.all([
+    getProjectsByOrgId(orgId),
+    getProjectStats(orgId),
+  ]);
+
+  const projects = allProjects.filter((p) => p.status !== 'deleted');
 
   return (
     <div className="space-y-6">
@@ -36,10 +30,7 @@ export default async function DashboardPage() {
             Panel principal — Todos tus proyectos en un solo lugar
           </p>
         </div>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          Nuevo proyecto
-        </Button>
+        <CreateProjectButton />
       </div>
 
       {/* Stats Overview */}
@@ -50,7 +41,7 @@ export default async function DashboardPage() {
             <BarChart3 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{projects.length}</div>
+            <div className="text-2xl font-bold">{stats.activeProjects}</div>
           </CardContent>
         </Card>
         <Card>
@@ -59,8 +50,7 @@ export default async function DashboardPage() {
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">este mes</p>
+            <div className="text-2xl font-bold">{stats.totalContent}</div>
           </CardContent>
         </Card>
         <Card>
@@ -69,7 +59,7 @@ export default async function DashboardPage() {
             <Megaphone className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0</div>
+            <div className="text-2xl font-bold">{stats.activeCampaigns}</div>
           </CardContent>
         </Card>
         <Card>
@@ -78,7 +68,7 @@ export default async function DashboardPage() {
             <Share2 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0</div>
+            <div className="text-2xl font-bold">{stats.scheduledPosts}</div>
           </CardContent>
         </Card>
       </div>
@@ -88,38 +78,41 @@ export default async function DashboardPage() {
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-12">
             <div className="rounded-full bg-muted p-4 mb-4">
-              <Plus className="h-8 w-8 text-muted-foreground" />
+              <BarChart3 className="h-8 w-8 text-muted-foreground" />
             </div>
             <CardTitle className="mb-2">No tienes proyectos aún</CardTitle>
             <CardDescription className="mb-4 text-center">
               Crea tu primer proyecto para empezar a generar contenido, gestionar ads y más.
             </CardDescription>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Crear primer proyecto
-            </Button>
+            <CreateProjectButton />
           </CardContent>
         </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {projects.map((project) => (
             <Link key={project.id} href={`/${project.id}`}>
-              <Card className="cursor-pointer transition-shadow hover:shadow-md">
+              <Card className="cursor-pointer transition-all hover:shadow-md hover:border-primary/50 group">
                 <CardHeader>
                   <div className="flex items-center justify-between">
-                    <CardTitle>{project.name}</CardTitle>
-                    <Badge variant={project.status === 'active' ? 'default' : 'secondary'}>
-                      {project.status === 'active' ? 'Activo' : 'Pausado'}
-                    </Badge>
+                    <CardTitle className="text-lg">{project.name}</CardTitle>
+                    <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
                   {project.domain && (
-                    <CardDescription>{project.domain}</CardDescription>
+                    <CardDescription className="flex items-center gap-1.5">
+                      <Globe className="h-3.5 w-3.5" />
+                      {project.domain}
+                    </CardDescription>
                   )}
                 </CardHeader>
                 <CardContent>
-                  {project.industry && (
-                    <Badge variant="outline">{project.industry}</Badge>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <Badge variant={project.status === 'active' ? 'default' : 'secondary'}>
+                      {project.status === 'active' ? 'Activo' : 'Pausado'}
+                    </Badge>
+                    {project.industry && (
+                      <Badge variant="outline">{project.industry}</Badge>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             </Link>
