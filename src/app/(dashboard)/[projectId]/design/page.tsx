@@ -1,6 +1,28 @@
+import { notFound } from 'next/navigation';
+import { getProjectById } from '@/lib/db/queries/projects';
+import { getAssetsByProject, getTemplatesByProject } from '@/lib/db/queries/design';
 import { Palette } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { DesignGenerator } from '@/components/dashboard/design-generator';
+import { DesignAssetGrid } from '@/components/dashboard/design-asset-grid';
+import { DesignTemplateList } from '@/components/dashboard/design-template-list';
 
-export default function DesignPage() {
+export default async function DesignPage({
+  params,
+}: {
+  params: Promise<{ projectId: string }>;
+}) {
+  const { projectId } = await params;
+  const project = await getProjectById(projectId);
+  if (!project || project.status === 'deleted') notFound();
+
+  const [assets, templates] = await Promise.all([
+    getAssetsByProject(projectId),
+    getTemplatesByProject(projectId),
+  ]);
+
+  const brandKit = (project.brandKitJson as Record<string, unknown>) || {};
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
@@ -9,12 +31,29 @@ export default function DesignPage() {
         </div>
         <div>
           <h1 className="text-2xl font-bold">Design Engine</h1>
-          <p className="text-muted-foreground">Genera imágenes y creativos con IA</p>
+          <p className="text-muted-foreground">{project.name} — Creativos y assets visuales con IA</p>
         </div>
       </div>
-      <div className="rounded-lg border border-dashed p-12 text-center text-muted-foreground">
-        Módulo en desarrollo — Fase 1 MVP
-      </div>
+
+      <Tabs defaultValue="generate" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="generate">Generar creativos</TabsTrigger>
+          <TabsTrigger value="assets">Assets ({assets.length})</TabsTrigger>
+          <TabsTrigger value="templates">Templates ({templates.length})</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="generate">
+          <DesignGenerator projectId={projectId} brandKit={brandKit} />
+        </TabsContent>
+
+        <TabsContent value="assets">
+          <DesignAssetGrid assets={assets} />
+        </TabsContent>
+
+        <TabsContent value="templates">
+          <DesignTemplateList templates={templates} projectId={projectId} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
